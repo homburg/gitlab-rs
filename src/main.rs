@@ -43,6 +43,7 @@ use serialize::json;
 struct Project {
 	id: int,
 	name: String,
+	path: String,
 }
 
 #[deriving(Encodable,Decodable,Show)]
@@ -54,6 +55,30 @@ struct MergeRequest {
 
 
 fn main() {
+	let args = os::args();
+
+	let cmds = args.tail();
+
+	let cmd = if cmds.len() > 0 {
+		cmds[0].clone()
+	} else {
+		"".to_string()
+	};
+
+
+	if cmd.as_slice() == "projects" {
+		println!("Listing projects...");
+	};
+
+	if cmd.as_slice() == "merge-requests" {
+		println!("Listing merge requests...");
+	};
+
+	let mut i: int = 0;
+	for a in cmds.iter() {
+		println!("{} {}", i, a);
+		i += 1;
+	};
 
 	let private_token = match os::getenv("GITLAB_PRIVATE_TOKEN") {
 		Some(token) => token,
@@ -67,14 +92,19 @@ fn main() {
 
     let projects_response = RestClient::get_with_params(
 		format!("{}/api/v3/projects", gitlab_url).as_slice(),
-		[("private_token", private_token.as_slice())]
+		[
+			("private_token", private_token.as_slice()),
+			("state", "opened"),
+		],
 	).unwrap();
 
-    // println!("{:d}", projects_response.code);
+    if projects_response.code != 200 {
+		fail!("Oops {}", projects_response.code);
+	};
 
 	let projects: Vec<Project> = json::decode(projects_response.body.as_slice()).unwrap();
 
 	for project in projects.iter() {
-		println!("{name}", name=project.name);
+		println!("{path}", path=project.path);
 	}
 }
