@@ -1,16 +1,9 @@
-extern crate http;
-extern crate url;
+extern crate rest_client;
 extern crate serialize;
 
-use http::client::RequestWriter;
-use http::method::Get;
-use url::Url;
-use std::os;
-
+use rest_client::RestClient;
 use serialize::json;
 
-// {
-//    "id": 4,
 //    "description": null,
 //    "default_branch": "master",
 //    "public": false,
@@ -58,80 +51,58 @@ struct MergeRequest {
 	description: String,
 }
 
-fn get_gitlab_items(url_str: String) -> String {
-    let url = Url::parse(url_str.as_slice()).unwrap();
-    let request: RequestWriter = match RequestWriter::new(Get, url) {
-        Ok(request) => request,
-        Err(error) => fail!(":-( {}", error),
-    };
+    println!("{}", RestClient::get("").unwrap());
 
-    let mut response = match request.read_response() {
-        Ok(response) => response,
-        Err((_request, error)) => fail!(":-( {}", error),
-    };
+    // You can use an array of tuples to create a GET with query parameters.
+    // The client handles all the URL-encoding and escaping for you.
 
-	let response_body = match response.read_to_string() {
-		Ok(body) => body,
-		Err(error) => fail!(":-( {}", error),
-	};
+    println!("{}", RestClient::get_with_params("http://example.com/resource", 
+                                               [("id", "50"), ("foo", "bar")]).unwrap());
 
-	return response_body;
-}
+    // You can also use an array of tuples to create a POST with form parameters. 
+    // The client sets the content-type to application/x-www-form-urlencoded for you.
 
-fn get_projects(url_str: String) -> Vec<Project> {
-	let response_body = get_gitlab_items(url_str);
+    println!("{}", RestClient::post_with_params("http://example.com/resource",
+                                                [("param1", "one"), 
+                                                 ("param2", "two")]).unwrap());
 
-	let projects: Vec<Project> = json::decode(response_body.as_slice()).unwrap();
-	return projects;
-}
+    // You can POST a string or a JSON object with just a string and a MIME type.
+    println!("{}", RestClient::post("http://example.com/resource",
+                                    json::encode(&object).as_slice(), 
+                                    "application/json").unwrap());
 
-fn get_merge_requests(url_str: String) -> Vec<MergeRequest> {
-	let response_body = get_gitlab_items(url_str);
+    // PUT and PATCH are supported as well, just like POST.
 
-	let mrs = json::decode(response_body.as_slice()).unwrap();
-	return mrs;
-}
+    // You can delete a resource with a simple DELETE. delete_with_params works too.
 
-fn main() {
-	let private_token = match os::getenv("GITLAB_PRIVATE_TOKEN") {
-		Some(token) => token,
-		None => fail!("You should probably specifiy a token"),
-	};
+    println!("{}", RestClient::delete("http://example.com/resource").unwrap());
 
-	let base_url = "http://git.ordbogen.com";
-	let api_base = "/api/v3";
+    /*
+      The response struct has a few fields
+      code (a simple integer)
+      body (a string)
+      status (a typed response code, from Hyper)
+      headers (typed headers from Hyper)
+    */
 
-	let projects = get_projects(
-		format!("{}{}/projects?private_token={}", base_url, api_base, private_token),
-	);
+    let response = RestClient::get("http://example.com/resource").unwrap();
 
-	let mut educas = &Project { name: "Ukendt".to_string(), id: 13 };
+    println!("{:d}", response.code); // -> 404
 
-	for p in projects.iter() {
-		println!("{}", p.name);
-		if p.name.as_slice() == "Educas.com" {
-			educas = p;
-		}
-	};
+    for header in response.headers.iter() {
+        println!("{}", header); // -> (Cache-Control, max-age=604800) ...
+    }
 
-	println!("{}", educas);
+    println!("{}", response.to_string());                 
 
-	let mrs = get_merge_requests(
-		format!(
-			"{}{}/projects/{}/merge_requests?private_token={}&state=opened",
-			base_url,
-			api_base,
-			educas.id,
-			private_token,
-		)
-	);
+    /*
+      All of the underlying errors are passed up through 
+      the RestError struct in the Result.
 
-	for m in mrs.iter() {
-		let description_format = match m.description.as_slice() {
-			"" => "".to_string(),
-			s => format!("\n===\n{}\n===\n", s),
-		};
-
-		println!("## {}\n{}", m.title, description_format);
-	}
+      pub enum RestError {
+        UrlParseError(ParseError),
+        HttpRequestError(HttpError),
+        HttpIoError(IoError)
+      }
+    */
 }
