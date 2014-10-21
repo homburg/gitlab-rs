@@ -1,0 +1,8 @@
+[package]
+
+name = "hello-gitlab"
+version = "0.0.1"
+authors = ["Thomas B Homburg <thomas@homburg.dk>"]
+
+[dependencies.http]
+git = "https://github.com/chris-morgan/rust-http"
